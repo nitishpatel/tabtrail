@@ -1,9 +1,12 @@
 {
     "manifest_version": 3,
-    "name": "Tab Manager for Chrome Dev Docs",
+    "name": "TabTrail",
     "version": "1.0",
     "action": {
-      "default_popup": "popup.html"
+      "default_popup": "popup.html",
+      "default_icon": {
+        "128": "images/icon.png"
+      }
     },
     "host_permissions": ["http://*/*", "https://*/*"],
     "permissions": [

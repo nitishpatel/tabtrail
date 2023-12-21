@@ -8,56 +8,56 @@ const tabUrls = [
   "https://www.facebook.com/",
 ];
 
+// Promisify chrome.tabs.create
+const createTab = (url) => {
+  return new Promise((resolve) => {
+    chrome.tabs.create({ url, active: false }, (newTab) => {
+      resolve(newTab.id);
+    });
+  });
+};
+
+// Promisify chrome.tabs.group
+const groupTabs = (tabIds) => {
+  return new Promise((resolve) => {
+    chrome.tabs.group({ tabIds }, (groupId) => {
+      resolve(groupId);
+    });
+  });
+};
+
+// Promisify chrome.tabGroups.update
+const updateGroup = (groupId) => {
+  return new Promise((resolve, reject) => {
+    chrome.tabGroups.update(
+      groupId,
+      {
+        title: "My Group",
+        color: "red",
+        collapsed: false,
+      },
+      (updatedGroup) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+        } else {
+          resolve(updatedGroup);
+        }
+      }
+    );
+  });
+};
+
 async function createTabGroup() {
   const tabIds = [];
 
-  // Promisify chrome.tabs.create
-  const createTab = (url) => {
-    return new Promise((resolve) => {
-      chrome.tabs.create({ url, active: false }, (newTab) => {
-        tabIds.push(newTab.id);
-        resolve();
-      });
-    });
-  };
-
-  // Promisify chrome.tabs.group
-  const groupTabs = () => {
-    return new Promise((resolve) => {
-      chrome.tabs.group({ tabIds }, (groupId) => {
-        resolve(groupId);
-      });
-    });
-  };
-
-  // Promisify chrome.tabGroups.update
-  const updateGroup = (groupId) => {
-    return new Promise((resolve, reject) => {
-      chrome.tabGroups.update(
-        groupId,
-        {
-          title: "My Group",
-          color: "red",
-          collapsed: false,
-        },
-        (updatedGroup) => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-          } else {
-            resolve(updatedGroup);
-          }
-        }
-      );
-    });
-  };
-
   // Iterate over tabUrls and create tabs
   for (const url of tabUrls) {
-    await createTab(url);
+    const tabId = await createTab(url);
+    tabIds.push(tabId);
   }
 
   // Group created tabs
-  const groupId = await groupTabs();
+  const groupId = await groupTabs(tabIds);
 
   // Update the group
   try {
@@ -99,8 +99,10 @@ function saveGroupInfoToLocalStorage() {
                 );
               } else {
                 const existingGroupInfo = result.groupInfo || [];
-                const existingGroupInfoObj = JSON.parse(existingGroupInfo);
-                alert(JSON.stringify(existingGroupInfoObj));
+                // check if existingGroupInfo is an array
+                const existingGroupInfoObj = Array.isArray(existingGroupInfo)
+                  ? existingGroupInfo
+                  : JSON.parse(existingGroupInfo);
                 existingGroupInfoObj.push(groupInfo);
 
                 chrome.storage.local.set(
@@ -148,16 +150,29 @@ function displayGroupInfo() {
       const groupInfo = result.groupInfo || "[]";
       const groupInfoObj = JSON.parse(groupInfo);
 
-      if (groupInfoObj.length > 0) {
-        const lastGroupInfo = groupInfoObj[groupInfoObj.length - 1];
-        document.getElementById(
-          "tabs"
-        ).innerHTML = `${lastGroupInfo.title} - ${lastGroupInfo.color} - ${lastGroupInfo.collapsed}`;
-      } else {
-        console.log("No group information found in local storage.");
-      }
+      // create li elements for each groupInfoObj
+      const listItems = groupInfoObj.map((group) => {
+        return `<li style="background-color: ${group.color};">
+                  <h3>${group.title}</h3>
+                  <p>Color: ${group.color}</p>
+                  <p>Collapsed: ${group.collapsed}</p>
+                </li>`;
+      });
+
+      // append the listItems to the ul element
+      document.getElementById("tabs").innerHTML = listItems.join("");
     }
   });
 }
+
+document.getElementById("clearTabs").addEventListener("click", function () {
+  chrome.storage.local.clear(function () {
+    if (chrome.runtime.lastError) {
+      console.error("Error clearing local storage:", chrome.runtime.lastError);
+    } else {
+      console.log("Local storage cleared successfully.");
+    }
+  });
+});
 
 displayGroupInfo();
