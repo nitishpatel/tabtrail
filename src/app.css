@@ -1,0 +1,51 @@
+#app {
+  max-width: 1280px;
+  text-align: center;
+}
+
+.logo {
+  height:2em;
+  padding: 0.5em;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.preact:hover {
+  filter: drop-shadow(0 0 2em #673ab8aa);
+}
+
+.card {
+  padding: 2em;
+  box-shadow: rgba(0, 0, 0, 0.24) 0px 3px 8px;
+}
+
+.read-the-docs {
+  color: #888;
+}
+
+.item{
+  margin: 1em;
+  border-radius: 0.5em;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-around;
+}
+.item .item-title{
+  font-size: 1.5em;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px; /* Adjust the max-width as needed */
+  min-width: 200px; /* Adjust the min-width as needed */
+  text-align: left;
+}
+.navbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 400;
+  padding: 1em;
+  background-color: #ff7979;
+}

@@ -1,12 +1,28 @@
-document.getElementById("openTabs").addEventListener("click", function () {
-  createTabGroup();
-});
-
 const tabUrls = [
   "https://www.google.com/",
   "https://www.youtube.com/",
   "https://www.facebook.com/",
 ];
+
+function setErrorMessage(message) {
+  const alert = `
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+      <p id="errorText">${message}</p>
+      <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>`;
+
+  const errorContainer = document.getElementById("error");
+  if (errorContainer) {
+    errorContainer.innerHTML = alert;
+  }
+  // Close the alert after 3 seconds
+  setTimeout(() => {
+    const alert = document.querySelector(".alert");
+    if (alert) {
+      alert.remove();
+    }
+  }, 3000);
+}
 
 // Promisify chrome.tabs.create
 const createTab = (url) => {
@@ -25,6 +41,44 @@ const groupTabs = (tabIds) => {
     });
   });
 };
+
+function displayGroupInfo() {
+  chrome.storage.local.get(["groupInfo"], function (result) {
+    if (chrome.runtime.lastError) {
+      console.error(
+        "Error retrieving group info from local storage:",
+        chrome.runtime.lastError
+      );
+    } else {
+      const groupInfo = result.groupInfo || "[]";
+      const groupInfoObj = JSON.parse(groupInfo);
+
+      // create li elements for each groupInfoObj
+      const listItems = groupInfoObj.map((group) => {
+        const tabsTab = group.tabs.map((tab) => {
+          return `<tr>
+                    <td class='ellipsis'>${tab}</td>
+                  </tr>`;
+        });
+
+        return `<li class="card" style="border-color: ${group.color}" id="${
+          group.groupId
+        }" onclick="createTabGroup(${group.groupId})" nonce="${group.groupId}">
+                  <h6 style="color: ${group.color}">${group.title}</h6>
+                  <table>
+                    <tr>
+                      <th>TABS</th>
+                    </tr>
+                    ${tabsTab.join("")}
+                  </table>
+                </li>`;
+      });
+
+      // append the listItems to the ul element
+      document.getElementById("tabs").innerHTML = listItems.join("");
+    }
+  });
+}
 
 // Promisify chrome.tabGroups.update
 const updateGroup = (groupId) => {
@@ -47,7 +101,17 @@ const updateGroup = (groupId) => {
   });
 };
 
-async function createTabGroup() {
+async function createTabGroup(groupId) {
+  // Fetching the tab group based on the groupId from the storage
+  const groups = await chrome.storage.local.get(["groupInfo"]);
+  const groupInfo = groups.groupInfo.filter(
+    (group) => group.groupId === groupId
+  );
+  if (!groupInfo) {
+    console.error("Group not found.");
+    setErrorMessage("Group not found.");
+  }
+
   const tabIds = [];
 
   // Iterate over tabUrls and create tabs
@@ -57,14 +121,14 @@ async function createTabGroup() {
   }
 
   // Group created tabs
-  const groupId = await groupTabs(tabIds);
+  const newGroupId = await groupTabs(tabIds);
 
   // Update the group
   try {
-    const updatedGroup = await updateGroup(groupId);
+    const updatedGroup = await updateGroup(newGroupId);
     alert("Group updated successfully with id: " + updatedGroup.id);
   } catch (error) {
-    alert("Failed to update the group: " + error.message);
+    setErrorMessage(error.message);
   }
 }
 
@@ -80,7 +144,13 @@ function saveGroupInfoToLocalStorage() {
             "Error retrieving tab information:",
             chrome.runtime.lastError
           );
+          setErrorMessage(chrome.runtime.lastError.message);
         } else {
+          if (tab.groupId === -1) {
+            console.error("Tab is not in a group.");
+            setErrorMessage("Tab is not in a group.");
+            return;
+          }
           const group = await chrome.tabGroups.get(tab.groupId);
 
           if (group) {
@@ -90,6 +160,13 @@ function saveGroupInfoToLocalStorage() {
               color: group.color,
               collapsed: group.collapsed,
             };
+            // Get all the tabs in the group
+            const tabsInGroup = await chrome.tabs.query({
+              groupId: tab.groupId,
+            });
+
+            const tabUrls = tabsInGroup.map((tab) => tab.url);
+            groupInfo.tabs = tabUrls;
 
             chrome.storage.local.get(["groupInfo"], function (result) {
               if (chrome.runtime.lastError) {
@@ -97,6 +174,7 @@ function saveGroupInfoToLocalStorage() {
                   "Error retrieving group info from local storage:",
                   chrome.runtime.lastError
                 );
+                setErrorMessage(chrome.runtime.lastError.message);
               } else {
                 const existingGroupInfo = result.groupInfo || [];
                 // check if existingGroupInfo is an array
@@ -118,6 +196,7 @@ function saveGroupInfoToLocalStorage() {
                         "Group info saved to local storage:",
                         existingGroupInfoObj
                       );
+                      displayGroupInfo();
                     }
                   }
                 );
@@ -125,54 +204,19 @@ function saveGroupInfoToLocalStorage() {
             });
           } else {
             console.error("Tab is not in a group.");
+            setErrorMessage("Tab is not in a group.");
           }
         }
       });
     } else {
       console.error("No active tabs found.");
+      setErrorMessage("No active tabs found.");
     }
   });
 }
 
 document.getElementById("saveTabs").addEventListener("click", function () {
   saveGroupInfoToLocalStorage();
-});
-
-// Fetch the group info from local storage and display it in the popup id=tabs
-function displayGroupInfo() {
-  chrome.storage.local.get(["groupInfo"], function (result) {
-    if (chrome.runtime.lastError) {
-      console.error(
-        "Error retrieving group info from local storage:",
-        chrome.runtime.lastError
-      );
-    } else {
-      const groupInfo = result.groupInfo || "[]";
-      const groupInfoObj = JSON.parse(groupInfo);
-
-      // create li elements for each groupInfoObj
-      const listItems = groupInfoObj.map((group) => {
-        return `<li style="background-color: ${group.color};">
-                  <h3>${group.title}</h3>
-                  <p>Color: ${group.color}</p>
-                  <p>Collapsed: ${group.collapsed}</p>
-                </li>`;
-      });
-
-      // append the listItems to the ul element
-      document.getElementById("tabs").innerHTML = listItems.join("");
-    }
-  });
-}
-
-document.getElementById("clearTabs").addEventListener("click", function () {
-  chrome.storage.local.clear(function () {
-    if (chrome.runtime.lastError) {
-      console.error("Error clearing local storage:", chrome.runtime.lastError);
-    } else {
-      console.log("Local storage cleared successfully.");
-    }
-  });
 });
 
 displayGroupInfo();
