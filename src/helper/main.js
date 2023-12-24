@@ -82,19 +82,29 @@ export const createTabGroup = async (groupId) => {
   }
 };
 
-export const saveTabs = () => {
-  chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+export const saveTabs = async () => {
+  try {
+    const tabs = await new Promise((resolve) => {
+      chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+        resolve(tabs);
+      });
+    });
+
     if (tabs && tabs.length > 0) {
       const currentTab = tabs[0];
 
-      chrome.tabs.get(currentTab.id, async function (tab) {
-        if (!chrome.runtime.lastError) {
-          if (tab.groupId === -1) {
-            toast.error("No tab group found");
-            return;
-          }
-        }
-        const group = await chrome.tabGroups.get(tab.groupId);
+      const tab = await new Promise((resolve) => {
+        chrome.tabs.get(currentTab.id, (tab) => {
+          resolve(tab);
+        });
+      });
+
+      if (!chrome.runtime.lastError && tab.groupId !== -1) {
+        const group = await new Promise((resolve) => {
+          chrome.tabGroups.get(tab.groupId, (group) => {
+            resolve(group);
+          });
+        });
 
         const groupInfo = {
           groupId: uuidv4(),
@@ -102,53 +112,83 @@ export const saveTabs = () => {
           color: group.color,
           collapsed: group.collapsed,
         };
-        // Get all the tabs in the group
-        const tabsInGroup = await chrome.tabs.query({
-          groupId: tab.groupId,
+
+        const tabsInGroup = await new Promise((resolve) => {
+          chrome.tabs.query({ groupId: tab.groupId }, (tabsInGroup) => {
+            resolve(tabsInGroup);
+          });
         });
 
         const tabUrls = tabsInGroup.map((tab) => tab.url);
         groupInfo.tabs = tabUrls;
 
-        chrome.storage.local.get(["groupInfo"], function (result) {
-          if (chrome.runtime.lastError) {
-            console.error(
-              "Error retrieving group info from local storage:",
-              chrome.runtime.lastError
-            );
-            toast.error("Error retrieving group info from local storage");
-          } else {
-            const existingGroupInfo = result.groupInfo || [];
-            // check if existingGroupInfo is an array
-            const existingGroupInfoObj = Array.isArray(existingGroupInfo)
-              ? existingGroupInfo
-              : JSON.parse(existingGroupInfo);
-            existingGroupInfoObj.push(groupInfo);
-
-            chrome.storage.local.set(
-              { groupInfo: JSON.stringify(existingGroupInfoObj) },
-              function () {
-                if (chrome.runtime.lastError) {
-                  console.error(
-                    "Error saving group info to local storage:",
-                    chrome.runtime.lastError
-                  );
-                  toast.error("Error saving group info to local storage");
-                } else {
-                  console.log(
-                    "Group info saved to local storage:",
-                    existingGroupInfoObj
-                  );
-                  toast.success("Group info saved to local storage");
-                  // displayGroupInfo();
-                }
-              }
-            );
-          }
+        const existingGroupInfo = await new Promise((resolve) => {
+          chrome.storage.local.get(["groupInfo"], (result) => {
+            if (chrome.runtime.lastError) {
+              console.error(
+                "Error retrieving group info from local storage:",
+                chrome.runtime.lastError
+              );
+              toast.error("Error retrieving group info from local storage");
+              resolve([]);
+            } else {
+              resolve(result.groupInfo || []);
+            }
+          });
         });
-      });
+
+        let existingGroupInfoObj = Array.isArray(existingGroupInfo)
+          ? existingGroupInfo
+          : JSON.parse(existingGroupInfo);
+
+        // Check if group already exists in local storage
+        let existingGroup = existingGroupInfoObj.filter(
+          (group) => group.title === groupInfo.title
+        );
+
+        if (existingGroup.length > 0 && existingGroup[0].tabs.length > 0) {
+          // merge the tabs
+          groupInfo.tabs = [...existingGroup[0].tabs, ...groupInfo.tabs];
+          // remove duplicates
+          groupInfo.tabs = [...new Set(groupInfo.tabs)];
+
+          // remove the existing group
+          existingGroupInfoObj = existingGroupInfoObj.filter(
+            (group) => group.title !== groupInfo.title
+          );
+        }
+
+        existingGroupInfoObj.push(groupInfo);
+
+        await new Promise((resolve) => {
+          chrome.storage.local.set(
+            { groupInfo: JSON.stringify(existingGroupInfoObj) },
+            () => {
+              if (chrome.runtime.lastError) {
+                console.error(
+                  "Error saving group info to local storage:",
+                  chrome.runtime.lastError
+                );
+                toast.error("Error saving group info to local storage");
+              } else {
+                console.log(
+                  "Group info saved to local storage:",
+                  existingGroupInfoObj
+                );
+                toast.success("Group info saved to local storage");
+                resolve();
+              }
+            }
+          );
+        });
+      } else {
+        toast.error("No tab group found");
+      }
     }
-  });
+  } catch (error) {
+    console.error("Error in saveTabs:", error);
+    toast.error("Error in saveTabs");
+  }
 };
 
 export const getTabs = async () => {
@@ -200,6 +240,26 @@ export const deleteGroup = async (groupId) => {
           resolve();
         }
       );
+    });
+  });
+};
+
+export const exportMyTabs = async () => {
+  return new Promise((resolve, reject) => {
+    chrome.storage.local.get(["groupInfo"], function (result) {
+      if (chrome.runtime.lastError) {
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+
+      if (!result.groupInfo) {
+        toast.error("No tabs saved yet.");
+        resolve([]);
+        return;
+      }
+
+      const groupInfo = JSON.parse(result.groupInfo);
+      resolve(groupInfo);
     });
   });
 };

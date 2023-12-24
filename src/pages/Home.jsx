@@ -1,11 +1,11 @@
 import { useEffect, useState } from "preact/hooks";
-import icon from "./assets/icon.png";
-import open from "./assets/share.png";
-import "./app.css";
-import { createTabGroup, saveTabs, getTabs } from "./helper/main";
+import open from "../assets/share.png";
+import "../app.css";
+import { createTabGroup, saveTabs, getTabs,deleteGroup } from "../helper/main";
 import { ToastContainer } from "react-toastify";
+import Navbar from "../components/Navbar";
 
-export function App() {
+export function Home() {
   const [count, setCount] = useState(0);
   const [tabGroups, setTabGroups] = useState([]);
   const [reRender, setReRender] = useState(false);
@@ -25,14 +25,7 @@ export function App() {
 
   return (
     <>
-      <div className="navbar">
-        <div>
-          <a href="https://preactjs.com" target="_blank">
-            <img src={icon} className="logo preact" alt="Preact logo" />
-          </a>
-        </div>
-        <h1>TabTrail</h1>
-      </div>
+      <Navbar/>
       <div className="card">
         {/* <button onClick={createTabGroup}>Open Tabs</button> */}
         <button
@@ -58,7 +51,10 @@ export function App() {
               >
                 <h3 className="item-title">{tabGroup.title}</h3>
                 <p>{tabGroup.tabs.length} tabs</p>
-                <button>Remove</button>
+                <button onClick={async()=>{
+                  await deleteGroup(tabGroup.groupId);
+                  setReRender(!reRender);
+                }}>Remove</button>
                 <button
                   onClick={() => {
                     createTabGroup(tabGroup.groupId);
