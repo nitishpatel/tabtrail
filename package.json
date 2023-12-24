@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build-extension": "yarn build && cp src/manifest.json dist/",
+    "build-extension": "yarn build && cp manifest.json dist/ && cp images/icon.png dist/",
     "build": "vite build",
     "preview": "vite preview"
   },

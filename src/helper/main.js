@@ -78,7 +78,7 @@ export const createTabGroup = async (groupId) => {
     );
     toast.success("Group created successfully");
   } catch (error) {
-    setErrorMessage(error.message);
+    toast.error("Error updating group");
   }
 };
 
@@ -90,10 +90,8 @@ export const saveTabs = () => {
       chrome.tabs.get(currentTab.id, async function (tab) {
         if (!chrome.runtime.lastError) {
           if (tab.groupId === -1) {
-            return {
-              error: true,
-              message: "Tab is not in a group.",
-            };
+            toast.error("No tab group found");
+            return;
           }
         }
         const group = await chrome.tabGroups.get(tab.groupId);
@@ -149,9 +147,6 @@ export const saveTabs = () => {
           }
         });
       });
-    } else {
-      console.error("No active tabs found.");
-      setErrorMessage("No active tabs found.");
     }
   });
 };
@@ -165,7 +160,7 @@ export const getTabs = async () => {
       }
 
       if (!result.groupInfo) {
-        setErrorMessage("No tabs saved yet.");
+        // toast.error("No tabs saved yet.");
         resolve([]);
         return;
       }
@@ -185,7 +180,7 @@ export const deleteGroup = async (groupId) => {
       }
 
       if (!result.groupInfo) {
-        setErrorMessage("No tabs saved yet.");
+        toast.error("No tabs saved yet.");
         resolve([]);
         return;
       }
